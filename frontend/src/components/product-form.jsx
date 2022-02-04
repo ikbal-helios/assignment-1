@@ -14,8 +14,8 @@ const IMAGES = gql`
 `
 
 const UPLOAD_IMAGE = gql`
-    mutation addImage($image: Upload!) {
-        addImage(image: $image) {
+    mutation addImage($imageFile: Upload!) {
+        addImage(imageFile: $imageFile) {
             id
             image
             success
@@ -24,41 +24,48 @@ const UPLOAD_IMAGE = gql`
 `
 
 const ADD_PRODUCTS = gql`
-    mutation addProduct($title: String!, $image: Upload!) {
-        addProduct(title: $title, image: $image)
-        {
+    mutation addProduct($title: String!, $inputFiles: [ID]!) {
+        addProduct(title: $title, inputFiles: $inputFiles) {
             id
             title
-            success
+            files {
+                id
+                image
+            }
         }
     }
 `;
 
 
-function ProductForm({show, onHide}) {
-    const { loading: image_loading, data: image_list } = useQuery(IMAGES);
+function ProductForm({show, onHide, productRefetch}) {
+    const { loading: image_loading, data: image_list, refetch: imageRefetch } = useQuery(IMAGES);
     const [addProduct, { data, loading, error }] = useMutation(ADD_PRODUCTS);
     const [uploadImage] = useMutation(UPLOAD_IMAGE);
     const [input_image, setinputImage] = React.useState()
-    const [inputs, setInputs] = React.useState({})
+    const [title, setTitle] = React.useState('')
     const [selected_image, setSelectedImage] = React.useState([])
 
     const handleChange = (e)=>{
-        const name = e.target.name
-        setInputs(prev => ({
-            ...prev,
-            [name]: name !== 'image' ? e.target.value : e.target.files?.[0]
-        }))
+        setTitle(e.target.value)
     }
 
     const handleSubmit = (e)=>{
-        console.log(inputs)
         e.preventDefault()
-        addProduct({variables: {...inputs}})
+        addProduct({variables: {title: title, inputFiles: selected_image.map(val => val.id)}})
+            .then(resp => {
+                productRefetch()
+                setSelectedImage([])
+                onHide()
+            })
     }
 
-    const handleImageUpload = ()=>{
-        uploadImage({variables: {image: input_image}})
+    const handleImageUpload = (e)=>{
+        e.preventDefault()
+        uploadImage({variables: {imageFile: input_image}})
+        .then(resp => {
+                imageRefetch()
+                e.target.reset()
+            })
     }
 
     const handleSelect = (img_data)=>{
@@ -84,10 +91,12 @@ function ProductForm({show, onHide}) {
                     <Button type="submit" disabled={loading}>Add</Button>
                 </form>
 
-                <div className="d-flex my-3 align-items-center justify-content-center">
-                    <input className="form-control form-control-sm" onChange={(e)=>setinputImage(e.target.files[0])} type="file"/>
-                    <Button className='btn-success' size='sm' onClick={handleImageUpload}>Upload</Button>
-                </div>
+                <form onSubmit={handleImageUpload}>
+                    <div className="d-flex my-3 align-items-center justify-content-center">
+                        <input className="form-control form-control-sm" onChange={(e)=>setinputImage(e.target.files[0])} type="file"/>
+                        <Button type='submit' className='btn-success' size='sm'>Upload</Button>
+                    </div>
+                </form>
 
                 {image_loading?<h5>Loading ...</h5>:
                     <div className="d-flex flex-wrap mt-2">
