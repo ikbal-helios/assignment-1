@@ -28,39 +28,42 @@ class ProductType(DjangoObjectType):
 
 class ProductImageMutation(graphene.Mutation):
     id = graphene.ID()
-    image = Upload()
+    image = graphene.String()
     success = graphene.Boolean()
     class Arguments:
-        image = Upload(required=True)
+        image_file = Upload(required=True)
     
     @login_required
-    def mutate(self, info, image):
-        img = Image.objects.create(image = image)
+    def mutate(self, info, image_file):
+        img = Image.objects.create(image = image_file, user = info.context.user)
         return ProductImageMutation(
             success = True,
             id = img.id,
-            image = img.image,
-            user = info.context.user
+            image = img.image
         )
+    
 
 
 class ProductMutation(graphene.Mutation):
     id = graphene.ID()
-    image = Upload()
+    files = graphene.List(ProductImageType)
     title = graphene.String()
     success = graphene.Boolean()
     class Arguments:
         title = graphene.String(required = True)
-        image = Upload(required = True)
+        input_files = graphene.List(graphene.ID, required = True)
 
     @login_required
-    def mutate(self, info, title, image):
-        product = Product.objects.create(
+    def mutate(self, info, title, input_files):
+        product = Product(
             title = title,
-            image = image,
             user = info.context.user
         )
-        return ProductMutation(success=True, id=product.id, title=product.title, image=product.image)
+        product.save()
+        for file in input_files:
+            product.files.add(Image.objects.get(pk=file))
+        product.save()
+        return ProductMutation(success=True, id=product.id, title=product.title, files=product.files.all())
 
 
 class DeleteMutation(graphene.Mutation):
@@ -81,7 +84,7 @@ class DeleteMutation(graphene.Mutation):
 class Query(graphene.ObjectType):
     images = graphene.List(ProductImageType)
     products_by_user = graphene.List(ProductType)
-    product_by_id = graphene.Field(ProductType, id=graphene.String())
+    product_by_id = graphene.Field(ProductType, id=graphene.ID())
 
     @login_required
     def resolve_images(root, info):
@@ -94,7 +97,7 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_product_by_id(root, info, id):
         try:
-            return Product.objects.get(id=id)
+            return Product.objects.get(pk=id)
         except Product.DoesNotExist:
             return None
 
