@@ -1,5 +1,6 @@
-import graphene
 from django.contrib.auth import get_user_model
+import graphene
+from graphql import GraphQLError
 from graphene_django import DjangoObjectType
 from graphene_file_upload.scalars import Upload
 from graphql_jwt.decorators import login_required
@@ -10,12 +11,12 @@ from .models import Product, Image
 user_model = get_user_model()
 
 
-class ProductImageType(DjangoObjectType):
+class ProductImageType(DjangoObjectType):                   # Making Image type
     class Meta:
         model = Image
         fields = "__all__"
 
-class ProductType(DjangoObjectType):
+class ProductType(DjangoObjectType):                        # Making a product type (Its similer to making a serializer in DRF)
     class Meta:
         model = Product
         fields = ('id', 'title', 'files', 'user')
@@ -26,7 +27,7 @@ class ProductType(DjangoObjectType):
         return value_obj.files.all()
 
 
-class ProductImageMutation(graphene.Mutation):
+class ProductImageMutation(graphene.Mutation):              # Uploading a image
     id = graphene.ID()
     image = graphene.String()
     success = graphene.Boolean()
@@ -44,7 +45,7 @@ class ProductImageMutation(graphene.Mutation):
     
 
 
-class ProductMutation(graphene.Mutation):
+class ProductMutation(graphene.Mutation):                   # Create a new product instance
     id = graphene.ID()
     files = graphene.List(ProductImageType)
     title = graphene.String()
@@ -55,10 +56,9 @@ class ProductMutation(graphene.Mutation):
 
     @login_required
     def mutate(self, info, title, input_files):
-        product = Product(
-            title = title,
-            user = info.context.user
-        )
+        if(title == None or title == ''):
+            raise Exception('The product should have a title.')
+        product = Product(title = title, user = info.context.user)
         product.save()
         for file in input_files:
             product.files.add(Image.objects.get(pk=file))
@@ -66,7 +66,7 @@ class ProductMutation(graphene.Mutation):
         return ProductMutation(success=True, id=product.id, title=product.title, files=product.files.all())
 
 
-class DeleteMutation(graphene.Mutation):
+class DeleteMutation(graphene.Mutation):                    # Delete a product instance
     success = graphene.Boolean()
     class Arguments:
         id = graphene.ID(required = True)
@@ -81,7 +81,7 @@ class DeleteMutation(graphene.Mutation):
         return DeleteMutation(success=True)
 
 
-class Query(graphene.ObjectType):
+class Query(graphene.ObjectType):                           # Fetching images, product list, and a product using ID
     images = graphene.List(ProductImageType)
     products_by_user = graphene.List(ProductType)
     product_by_id = graphene.Field(ProductType, id=graphene.ID())

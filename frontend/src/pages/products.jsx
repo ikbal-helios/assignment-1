@@ -32,11 +32,12 @@ const DELETE_PRODUCT = gql`
 function Products() {
     const [product_modal, setProductModal] = React.useState(false)
     const [view_id, setViewID] = React.useState('')
-    const { loading, error, data, refetch: productRefetch } = useQuery(GET_PRODUCTS);
+    const { loading, data, refetch: productRefetch } = useQuery(GET_PRODUCTS);
     const [deleteProduct] = useMutation(DELETE_PRODUCT);
 
     const handleDelete = (id)=>{
         deleteProduct({variables: {id: id}})
+        productRefetch()
     }
 
     const handleViewProduct = (id)=>{

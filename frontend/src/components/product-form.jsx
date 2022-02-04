@@ -1,5 +1,5 @@
 import React from 'react';
-import {Modal, Button} from 'react-bootstrap';
+import {Modal, Button, Alert} from 'react-bootstrap';
 import {gql, useMutation, useQuery} from "@apollo/client";
 import { base_url } from '../api';
 
@@ -39,9 +39,10 @@ const ADD_PRODUCTS = gql`
 
 function ProductForm({show, onHide, productRefetch}) {
     const { loading: image_loading, data: image_list, refetch: imageRefetch } = useQuery(IMAGES);
-    const [addProduct, { data, loading, error }] = useMutation(ADD_PRODUCTS);
+    const [addProduct, { loading, reset }] = useMutation(ADD_PRODUCTS);
     const [uploadImage] = useMutation(UPLOAD_IMAGE);
     const [input_image, setinputImage] = React.useState()
+    const [errorMessage, setErrorMessage] = React.useState('')
     const [title, setTitle] = React.useState('')
     const [selected_image, setSelectedImage] = React.useState([])
 
@@ -51,12 +52,16 @@ function ProductForm({show, onHide, productRefetch}) {
 
     const handleSubmit = (e)=>{
         e.preventDefault()
-        addProduct({variables: {title: title, inputFiles: selected_image.map(val => val.id)}})
-            .then(resp => {
-                productRefetch()
-                setSelectedImage([])
-                onHide()
-            })
+        if(selected_image.length > 0){
+            setErrorMessage('')
+            addProduct({variables: {title: title, inputFiles: selected_image.map(val => val.id)}})
+                .then(resp => {
+                    productRefetch()
+                    onHide()
+                })
+                .catch(err => setErrorMessage(err.message))
+                .finally(()=>reset())
+        } else setErrorMessage('No image has been selected!')
     }
 
     const handleImageUpload = (e)=>{
@@ -74,9 +79,15 @@ function ProductForm({show, onHide, productRefetch}) {
             : setSelectedImage(prev => ([img_data, ...prev]))
     }
 
+    const onModalShow = ()=>{
+        setTitle('')
+        setSelectedImage([])
+        setErrorMessage('')
+    }
+
 
     return(
-        <Modal show={show} onHide={onHide} centered>
+        <Modal show={show} onHide={onHide} onShow={onModalShow} centered>
             <Modal.Header closeButton>
                 <Modal.Title>
                     Add new Product
@@ -88,6 +99,7 @@ function ProductForm({show, onHide, productRefetch}) {
                         <label className="form-label">Product Title</label>
                         <input type="text" name='title' className="form-control" onChange={handleChange}/>
                     </div>
+                    <Alert show={!!errorMessage} variant='danger'>{errorMessage}</Alert>
                     <Button type="submit" disabled={loading}>Add</Button>
                 </form>
 
@@ -98,7 +110,7 @@ function ProductForm({show, onHide, productRefetch}) {
                     </div>
                 </form>
 
-                {image_loading?<h5>Loading ...</h5>:
+                {image_loading ? <h5>Loading ...</h5> :
                     <div className="d-flex flex-wrap mt-2">
                         {image_list.images?.map((img) => 
                             <div key={img.id} className={`btn ${selected_image.some(val=>val.id===img.id) && 'border-danger'}`} onClick={()=>handleSelect(img)}>
